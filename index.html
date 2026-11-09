@@ -1,21 +1,162 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Agricultural Water Management</title>
+  <title>Agricultural Water Management App</title>
+
+  <!-- Leaflet Map -->
+  <link rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      background: #f4f7f5;
+      color: #263b35;
+    }
+
+    header {
+      background: #245b45;
+      color: white;
+      padding: 22px;
+      text-align: center;
+    }
+
+    .container {
+      max-width: 1100px;
+      margin: 25px auto;
+      padding: 20px;
+      background: white;
+      border-radius: 10px;
+    }
+
+    #map {
+      height: 480px;
+      width: 100%;
+      margin-top: 20px;
+      border-radius: 8px;
+    }
+
+    input {
+      margin-top: 12px;
+      padding: 10px;
+      max-width: 100%;
+    }
+
+    #status {
+      margin-top: 15px;
+      color: #245b45;
+    }
+  </style>
 </head>
+
 <body>
 
+<header>
   <h1>Agricultural Water Management Application</h1>
-
   <p>Remote Sensing and GIS for Agricultural Water Management</p>
+</header>
+
+<div class="container">
 
   <h2>Upload Study Area</h2>
 
+  <p>
+    Upload your Shapefile as a ZIP file containing
+    .shp, .shx and .dbf files.
+  </p>
+
   <input type="file" id="shapefile" accept=".zip">
 
-  <p id="status">Please upload a zipped Shapefile.</p>
+  <p id="status">Please upload your zipped Shapefile.</p>
+
+  <div id="map"></div>
+
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/shpjs@latest/dist/shp.js"></script>
+
+<script>
+  // Initialize map
+  const map = L.map('map').setView([30.5, 31.2], 7);
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors'
+  }).addTo(map);
+
+  let studyAreaLayer = null;
+
+  // Upload and read Shapefile
+  document.getElementById('shapefile').addEventListener('change',
+    async function(event) {
+
+      const file = event.target.files[0];
+      const status = document.getElementById('status');
+
+      if (!file) return;
+
+      if (!file.name.toLowerCase().endsWith('.zip')) {
+        status.textContent = 'Please upload a ZIP file.';
+        return;
+      }
+
+      status.textContent = 'Reading Shapefile...';
+
+      try {
+        const arrayBuffer = await file.arrayBuffer();
+        const geojson = await shp(arrayBuffer);
+
+        if (studyAreaLayer) {
+          map.removeLayer(studyAreaLayer);
+        }
+
+        const features = Array.isArray(geojson)
+          ? geojson
+          : Object.values(geojson);
+
+        const validLayers = features.filter(
+          item => item && item.type === 'FeatureCollection'
+        );
+
+        const data = validLayers.length
+          ? {
+              type: 'FeatureCollection',
+              features: validLayers.flatMap(item => item.features)
+            }
+          : geojson;
+
+        studyAreaLayer = L.geoJSON(data, {
+          style: {
+            color: '#e05236',
+            weight: 2,
+            fillColor: '#e9a34b',
+            fillOpacity: 0.25
+          }
+        }).addTo(map);
+
+        const bounds = studyAreaLayer.getBounds();
+
+        if (bounds.isValid()) {
+          map.fitBounds(bounds, { padding: [20, 20] });
+          status.textContent =
+            'Shapefile uploaded successfully! Study area displayed.';
+        } else {
+          throw new Error('No valid geographic features found.');
+        }
+
+      } catch (error) {
+        console.error(error);
+        status.textContent =
+          'Error reading file. Check that the ZIP contains a valid Shapefile.';
+      }
+    }
+  );
+</script>
 
 </body>
 </html>
+
